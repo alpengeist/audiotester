@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+*/build/
+
+# Local SDK and machine-specific config
+local.properties
+
+# Android Studio / IntelliJ
+.idea/caches/
+.idea/deploymentTargetSelector.xml
+.idea/deviceManager.xml
+.idea/workspace.xml
+*.iml
+
+# Kotlin / Java
+*.class
+out/
+
+# OS files
+.DS_Store
+Thumbs.db
