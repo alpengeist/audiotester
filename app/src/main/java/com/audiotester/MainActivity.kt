@@ -239,7 +239,7 @@ private fun AudiotesterApp() {
                     Icon(
                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                         contentDescription = if (isPlaying) "Pause output" else "Start output",
-                        modifier = Modifier.size(34.dp),
+                        modifier = Modifier.size(46.dp),
                     )
                 }
             }
