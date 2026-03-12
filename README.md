@@ -10,7 +10,13 @@ The app provides:
 - Live level adjustment while audio is playing
 - A simple transport control optimized for quick listening tests
 
-Phone speakers are not the intended target. The primary use case is checking how external playback systems respond across broad bands or at specific frequencies.
+I am using the app with a cheap bluetooth receiver that is connected to the device under test.
+
+The pink noise generator with four bands:
+![Screenshot](screenshot1.png)
+
+Sine wave generator:
+![Screenshot](screenshot2.png)
 
 ## Requirements
 

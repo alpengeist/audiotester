@@ -41,7 +41,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,11 +68,11 @@ class MainActivity : ComponentActivity() {
 private fun AudiotesterApp() {
     val engine = remember { AudioEngine() }
 
-    var mode by rememberSaveable { mutableStateOf(SignalMode.PINK_NOISE) }
-    var band by rememberSaveable { mutableStateOf(NoiseBand.LowBass) }
-    var levelDb by rememberSaveable { mutableFloatStateOf(-12f) }
-    var frequencyHz by rememberSaveable { mutableFloatStateOf(1000f) }
-    var isPlaying by rememberSaveable { mutableStateOf(false) }
+    var mode by remember { mutableStateOf(SignalMode.PINK_NOISE) }
+    var band by remember { mutableStateOf(NoiseBand.LowBass) }
+    var levelDb by remember { mutableFloatStateOf(-12f) }
+    var frequencyHz by remember { mutableFloatStateOf(1000f) }
+    var isPlaying by remember { mutableStateOf(false) }
 
     LaunchedEffect(mode, band, levelDb, frequencyHz) {
         engine.updateConfig(
