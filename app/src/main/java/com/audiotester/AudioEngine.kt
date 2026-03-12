@@ -140,8 +140,8 @@ enum class SignalMode {
 enum class NoiseBand(val label: String, val lowHz: Float, val highHz: Float) {
     Full("full", 20f, 18_000f),
     LowBass("bass", 20f, 250f),
-    MidPresence("mids", 250f, 2_000f),
-    Presence("pres", 2_000f, 6_000f),
+    MidPresence("mids", 250f, 3_000f),
+    Presence("pres", 3_000f, 6_000f),
     Treble("treble", 6_000f, 18_000f),
 }
 
