@@ -1,16 +1,16 @@
 # Audiotester
 
-Audiotester is a simple Android signal generator for external audio testing. It is designed to send audio over normal Android media output paths such as Bluetooth speakers, headphones, DACs, or other paired playback devices.
+Audiotester is a simple Android signal generator for testing audio devices.
+It is designed to send audio over normal Android media output paths such as Bluetooth speakers, headphones, DACs, or other paired playback devices.
+
+I am using the app with a cheap bluetooth receiver that is connected to the device under repair.
 
 The app provides:
 
 - Pink noise playback
-- Three selectable noise bands: bass, mids, treble
+- Five selectable noise bands: full, bass, mids, presence, treble
 - Sine wave test tone generation with variable frequency
-- Live level adjustment while audio is playing
-- A simple transport control optimized for quick listening tests
 
-I am using the app with a cheap bluetooth receiver that is connected to the device under test.
 
 The pink noise generator with four bands:
 
