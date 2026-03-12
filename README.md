@@ -13,9 +13,11 @@ The app provides:
 I am using the app with a cheap bluetooth receiver that is connected to the device under test.
 
 The pink noise generator with four bands:
+
 ![Screenshot](screenshot1.png)
 
 Sine wave generator:
+
 ![Screenshot](screenshot2.png)
 
 ## Requirements
