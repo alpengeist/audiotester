@@ -27,7 +27,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -44,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.audiotester.ui.theme.AudiotesterTheme
@@ -114,11 +117,8 @@ private fun AudiotesterApp() {
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
-            )
-            Text(
-                text = "Designed for external playback. Phone speakers are not the target path.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
 
             ControlCard(title = "Signal type") {
@@ -141,15 +141,42 @@ private fun AudiotesterApp() {
 
             if (mode == SignalMode.PINK_NOISE) {
                 ControlCard(title = "Noise band") {
+                    OutlinedButton(
+                        onClick = { band = NoiseBand.Full },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (band == NoiseBand.Full) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            },
+                            contentColor = if (band == NoiseBand.Full) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        ),
+                    ) {
+                        Text("full")
+                    }
                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        NoiseBand.entries.forEachIndexed { index, item ->
+                        val partialBands = NoiseBand.entries.filter { it != NoiseBand.Full }
+                        partialBands.forEachIndexed { index, item ->
                             SegmentedButton(
                                 selected = band == item,
                                 onClick = { band = item },
-                                shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(
+                                shape = SegmentedButtonDefaults.itemShape(
                                     index = index,
-                                    count = NoiseBand.entries.size,
+                                    count = partialBands.size,
                                 ),
+                                colors = SegmentedButtonDefaults.colors(
+                                    activeContainerColor = MaterialTheme.colorScheme.primary,
+                                    activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                                    inactiveContainerColor = MaterialTheme.colorScheme.surface,
+                                    inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+                                ),
+                                icon = {},
                                 label = { Text(item.label) },
                             )
                         }
