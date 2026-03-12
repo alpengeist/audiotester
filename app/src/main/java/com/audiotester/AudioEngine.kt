@@ -264,5 +264,5 @@ fun sliderToFrequency(position: Float): Float {
 fun frequencyToSlider(frequencyHz: Float): Float {
     val minHz = 20.0
     val maxHz = 20_000.0
-    return (ln((frequencyHz / minHz).toDouble()) / ln(maxHz / minHz)).toFloat()
+    return (ln(frequencyHz / minHz) / ln(maxHz / minHz)).toFloat()
 }
