@@ -126,10 +126,17 @@ private fun AudiotesterApp() {
                         SegmentedButton(
                             selected = mode == item,
                             onClick = { mode = item },
-                            shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(
+                            shape = SegmentedButtonDefaults.itemShape(
                                 index = index,
                                 count = SignalMode.entries.size,
                             ),
+                            colors = SegmentedButtonDefaults.colors(
+                                activeContainerColor = MaterialTheme.colorScheme.primary,
+                                activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                                inactiveContainerColor = MaterialTheme.colorScheme.surface,
+                                inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            icon = {},
                             label = {
                                 Text(if (item == SignalMode.PINK_NOISE) "Pink noise" else "Tone")
                             },
