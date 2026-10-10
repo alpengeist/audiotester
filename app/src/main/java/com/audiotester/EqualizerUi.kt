@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -27,12 +28,15 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -60,29 +64,44 @@ private fun bandColor(index: Int) = BandColors[index % BandColors.size]
 private fun decimal(value: Number, places: Int = 1) = String.format(Locale.US, "%.${places}f", value.toDouble())
 
 @Composable
-fun EqualizerControls(session: EqSession, plan: EqPlan, onChange: (EqSession) -> Unit) {
+fun EqualizerControls(session: EqSession, plan: EqPlan, noiseBand: NoiseBand, onChange: (EqSession) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Parametric EQ", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            Switch(checked = session.settings.enabled, onCheckedChange = {
-                onChange(session.copy(settings = session.settings.copy(enabled = it)))
-            }, modifier = Modifier.semantics { contentDescription = "Enable parametric EQ" })
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.weight(1f)
+                .clickable(onClickLabel = "Edit equalizer") { open = true }
+                .heightIn(min = 48.dp)
+                .padding(vertical = 4.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text("Equalizer", style = MaterialTheme.typography.titleMedium)
+            Text(
+                session.presetLabel ?: "Unsaved EQ",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Text(session.presetLabel ?: "Unsaved EQ", style = MaterialTheme.typography.bodyMedium)
-        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) { Text("Edit equalizer") }
+        Switch(checked = session.settings.enabled, onCheckedChange = {
+            onChange(session.copy(settings = session.settings.copy(enabled = it)))
+        }, modifier = Modifier.semantics { contentDescription = "Enable parametric EQ" })
     }
     if (open) {
         Dialog(onDismissRequest = { open = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                EqualizerEditor(session, plan, onChange)
+                EqualizerEditor(session, plan, noiseBand, onChange)
             }
         }
     }
 }
 
 @Composable
-private fun EqualizerEditor(session: EqSession, plan: EqPlan, onChange: (EqSession) -> Unit) {
+private fun EqualizerEditor(session: EqSession, plan: EqPlan, noiseBand: NoiseBand, onChange: (EqSession) -> Unit) {
     var selectedId by rememberSaveable { mutableStateOf(session.settings.bands.firstOrNull()?.id) }
     var parameter by rememberSaveable { mutableStateOf("dB") }
     var presetMenu by remember { mutableStateOf(false) }
@@ -108,36 +127,43 @@ private fun EqualizerEditor(session: EqSession, plan: EqPlan, onChange: (EqSessi
                     Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
             }
-            TextButton(onClick = { sheetDialog = true }) { Text("Sheet") }
             Switch(settings.enabled, { changeSettings(settings.copy(enabled = it)) },
                 modifier = Modifier.semantics { contentDescription = "Enable equalizer" })
         }
-        EqGraph(settings, plan, selected?.id,
+        EqGraph(settings, plan, noiseBand, selected?.id,
             onSelect = { selectedId = it; bandMenuId = null }, onBandChange = { changeBand(it) })
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             settings.bands.forEachIndexed { index, band ->
                 val isSelected = band.id == selected?.id
                 Box {
-                    FilterChip(selected = isSelected, onClick = {
+                    Surface(onClick = {
                         if (isSelected) {
                             bandMenuId = band.id
                         } else {
                             selectedId = band.id
                             bandMenuId = null
                         }
-                    }, label = { Text("${index + 1}${if (band.enabled) "" else " · off"}") },
-                        trailingIcon = if (isSelected) {
-                            { Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                        } else null,
-                        border = null,
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = bandColor(index), selectedContainerColor = bandColor(index),
-                            selectedLabelColor = Color.Black, labelColor = Color.Black,
-                            iconColor = Color.Black, selectedTrailingIconColor = Color.Black),
-                        modifier = Modifier.semantics {
+                    },
+                        shape = CircleShape,
+                        color = if (isSelected) bandColor(index) else Color(0xFF454957),
+                        contentColor = if (isSelected) Color.White else bandColor(index),
+                        modifier = Modifier.height(36.dp).widthIn(min = 48.dp).semantics {
+                            this.selected = isSelected
+                            role = Role.Button
                             contentDescription = "${if (isSelected) "Open menu for" else "Select"} band ${index + 1}, ${if (band.enabled) "active" else "disabled"}"
-                        })
+                        }) {
+                        Row(Modifier.padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center) {
+                            Text("${index + 1}${if (band.enabled) "" else " · off"}",
+                                style = MaterialTheme.typography.bodyLarge)
+                            if (isSelected) {
+                                Spacer(Modifier.width(4.dp))
+                                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
                     DropdownMenu(expanded = isSelected && bandMenuId == band.id, onDismissRequest = { bandMenuId = null }) {
                         DropdownMenuItem(text = { Text(if (band.enabled) "Disable band" else "Enable band") }, onClick = {
                             bandMenuId = null
@@ -152,13 +178,18 @@ private fun EqualizerEditor(session: EqSession, plan: EqPlan, onChange: (EqSessi
                     }
                 }
             }
-            FilledTonalButton(onClick = {
+            OutlinedButton(onClick = {
                 val band = EqBand((settings.bands.maxOfOrNull { it.id } ?: 0L) + 1L)
                 changeSettings(settings.copy(bands = settings.bands + band))
                 selectedId = band.id
                 bandMenuId = null
-            }, modifier = Modifier.width(48.dp).semantics { contentDescription = "Add band" },
-                contentPadding = PaddingValues(0.dp)) { Text("+") }
+            }, modifier = Modifier.width(48.dp).height(36.dp).semantics { contentDescription = "Add band" },
+                shape = CircleShape,
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurfaceVariant),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                contentPadding = PaddingValues(0.dp)) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+            }
         }
         if (selected == null) {
             Text("No bands. Add a band to begin.")
@@ -203,6 +234,9 @@ private fun EqualizerEditor(session: EqSession, plan: EqPlan, onChange: (EqSessi
     }, onDelete = { name ->
         presetMenu = false
         deletePreset = name
+    }, onSheet = {
+        presetMenu = false
+        sheetDialog = true
     })
     if (saveDialog) SavePresetDialog(session, saveName, onDismiss = { saveDialog = false }) { name ->
         onChange(session.copy(presets = session.presets + (name to settings), activePreset = name))
@@ -242,8 +276,12 @@ private fun PresetMenu(
     onLoad: (String) -> Unit,
     onReset: () -> Unit,
     onDelete: (String) -> Unit,
+    onSheet: () -> Unit,
 ) {
     var actionPreset by remember { mutableStateOf<String?>(null) }
+    val actionColor = MaterialTheme.colorScheme.primary
+    val actionColors = ButtonDefaults.textButtonColors(contentColor = actionColor)
+    val menuItemColors = MenuDefaults.itemColors(textColor = actionColor)
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column(Modifier.fillMaxWidth().heightIn(max = 560.dp).padding(bottom = 16.dp)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -251,18 +289,28 @@ private fun PresetMenu(
                 IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Close preset menu") }
             }
             HorizontalDivider()
-            TextButton(onClick = { onSave("") }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp)) {
+            TextButton(onClick = { onSave("") }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp),
+                colors = actionColors) {
                 Icon(Icons.Filled.Add, contentDescription = null)
                 Spacer(Modifier.width(12.dp))
                 Text("Create EQ preset", modifier = Modifier.weight(1f))
             }
             session.activePreset?.let { name ->
-                TextButton(onClick = { onSave(name) }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp)) {
-                    Text("Save changes to current preset", modifier = Modifier.weight(1f))
+                TextButton(onClick = { onSave(name) }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp),
+                    colors = actionColors) {
+                    Icon(Icons.Filled.Save, contentDescription = null)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Save", modifier = Modifier.weight(1f))
                 }
             }
+            TextButton(onClick = onSheet, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp),
+                colors = actionColors) {
+                Icon(Icons.Filled.TableChart, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Text("Sheet", modifier = Modifier.weight(1f))
+            }
             TextButton(onClick = onReset, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp),
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)) {
+                colors = actionColors) {
                 Icon(Icons.Filled.Refresh, contentDescription = null)
                 Spacer(Modifier.width(12.dp))
                 Text("Reset to default", modifier = Modifier.weight(1f))
@@ -279,20 +327,20 @@ private fun PresetMenu(
                     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { onLoad(name) }, modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp),
-                            colors = ButtonDefaults.textButtonColors(contentColor = if (name == session.activePreset)
-                                MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)) {
+                            colors = actionColors) {
                             Text(name, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Box {
-                            IconButton(onClick = { actionPreset = name }) {
+                            IconButton(onClick = { actionPreset = name },
+                                colors = IconButtonDefaults.iconButtonColors(contentColor = actionColor)) {
                                 Icon(Icons.Filled.MoreHoriz, contentDescription = "Actions for preset $name")
                             }
                             DropdownMenu(expanded = actionPreset == name, onDismissRequest = { actionPreset = null }) {
-                                DropdownMenuItem(text = { Text("Replace with current EQ") }, onClick = {
+                                DropdownMenuItem(text = { Text("Replace with current EQ") }, colors = menuItemColors, onClick = {
                                     actionPreset = null
                                     onSave(name)
                                 })
-                                DropdownMenuItem(text = { Text("Delete preset") }, onClick = {
+                                DropdownMenuItem(text = { Text("Delete preset") }, colors = menuItemColors, onClick = {
                                     actionPreset = null
                                     onDelete(name)
                                 })
@@ -362,6 +410,7 @@ private fun EqualizerEditorLayout(content: @Composable () -> Unit) {
 private fun EqGraph(
     settings: EqSettings,
     plan: EqPlan,
+    noiseBand: NoiseBand,
     selectedId: Long?,
     onSelect: (Long) -> Unit,
     onBandChange: (EqBand) -> Unit,
@@ -396,10 +445,9 @@ private fun EqGraph(
                 }
             }
             Spacer(Modifier.width(axisGap))
-            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().background(background)) {
-                val graphHeight = maxHeight
+            Box(Modifier.weight(1f).fillMaxHeight().background(background)) {
                 Canvas(Modifier.fillMaxSize().clipToBounds()
-                    .semantics { contentDescription = "Equalizer frequency response. Drag band markers to adjust frequency and gain, or select bands using the markers or numbered buttons below." }
+                    .semantics { contentDescription = "Equalizer frequency response. Shaded noise band: ${noiseBand.label}, ${noiseBand.lowHz.roundToInt()} to ${noiseBand.highHz.roundToInt()} Hz. Drag band markers to adjust frequency and gain, or select bands using the markers or numbered buttons below." }
                     .pointerInput(Unit) {
                         detectTapGestures { tap ->
                             val candidates = settingsNow.bands.map { band ->
@@ -454,6 +502,14 @@ private fun EqGraph(
                     }) {
                     fun x(hz: Float) = frequencyToSlider(hz) * size.width
                     fun y(db: Float) = size.height * (0.5f - db / (2 * range))
+                    // Draw the source range beneath the grid and EQ response on the same log axis.
+                    val noiseStart = x(noiseBand.lowHz)
+                    val noiseEnd = x(noiseBand.highHz)
+                    drawRect(
+                        color = foreground.copy(alpha = 0.10f),
+                        topLeft = Offset(noiseStart, 0f),
+                        size = Size(noiseEnd - noiseStart, size.height),
+                    )
                     for ((hz, _) in FrequencyTicks) {
                         val x = x(hz)
                         drawLine(foreground.copy(alpha = 0.4f), Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.25.dp.toPx())
@@ -479,15 +535,6 @@ private fun EqGraph(
                         if (band.id == selectedId) drawCircle(color, 5.dp.toPx(), center)
                     }
                 }
-                val selectedIndex = settings.bands.indexOfFirst { it.id == selectedId }
-                settings.bands.getOrNull(selectedIndex)?.let { band ->
-                    val markerY = graphHeight * (0.5f - band.gainDb / (2 * range))
-                    val labelTop = if (markerY >= 80.dp) markerY - 64.dp else markerY + 32.dp
-                    Text("${decimal(band.gainDb)} dB · ${band.frequencyHz.roundToInt()} Hz · ${decimal(band.q, 2)} Q",
-                        modifier = Modifier.align(Alignment.TopCenter).padding(start = 16.dp, end = 16.dp, top = labelTop)
-                            .background(bandColor(selectedIndex), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
-                        color = Color.Black, style = MaterialTheme.typography.bodySmall)
-                }
             }
         }
         val labels = FrequencyTicks
@@ -500,6 +547,13 @@ private fun EqGraph(
                     label.place((center - label.width / 2).roundToInt().coerceIn(0, constraints.maxWidth - label.width), 0)
                 }
             }
+        }
+        val selectedIndex = settings.bands.indexOfFirst { it.id == selectedId }
+        settings.bands.getOrNull(selectedIndex)?.let { band ->
+            Text("${decimal(band.gainDb)} dB · ${band.frequencyHz.roundToInt()} Hz · ${decimal(band.q, 2)} Q",
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(start = 16.dp, end = 16.dp, top = 8.dp)
+                    .background(bandColor(selectedIndex), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+                color = Color.Black, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

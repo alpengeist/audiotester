@@ -233,7 +233,7 @@ private fun AudiotesterApp() {
 
             if (mode == SignalMode.PINK_NOISE) {
                 ControlCard {
-                    EqualizerControls(eqSession, eqPlan) { next ->
+                    EqualizerControls(eqSession, eqPlan, band) { next ->
                         eqSession = next
                         eqRepository.save(next)
                     }
