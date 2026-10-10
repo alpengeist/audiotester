@@ -10,6 +10,8 @@ The app provides:
 - Pink noise playback
 - Five selectable noise bands: full, bass, mids, presence, treble
 - Sine wave test tone generation with variable frequency
+- Parametric EQ for pink noise: peak/dip, low shelf, and high shelf filters
+- Named headphone EQ presets and a copyable parameter sheet
 
 
 The pink noise generator with four bands:
@@ -40,7 +42,7 @@ Sine wave generator:
 
 1. Open Android Studio.
 2. Open the project folder:
-   `/mnt/c/proj/pinknoise_app`
+   `E:\proj\audiotester`
 3. Let Gradle sync the project.
 4. If Android Studio asks to install missing SDK components, allow it.
 5. Select a device and run the `app` configuration.
@@ -73,7 +75,60 @@ To build a debug APK in Android Studio:
 6. Set output level conservatively before starting playback.
 7. Press the play button to start output.
 
-## Notes
+## Pink-noise equalizer
+
+In pink-noise mode, open **Edit equalizer**. The EQ starts with five flat bands.
+Use the Android Back button or gesture to leave the editor.
+Select a solid-colored numbered band or tap its marker on the response graph; the
+selected band's gain, frequency, and Q appear inside the graph. Choose **dB**, **Hz**,
+or **Q** using the round buttons inside the fan scale; the selected button is white.
+Then drag the line indicator. Frequency and
+Q use logarithmic scales. The limits are ±15 dB, 20–20,000 Hz, and Q 0.1–10.
+
+Change the selected band's filter type using the borderless dropdown inside the scale,
+above the parameter buttons. The selected band's button
+shows a down-arrow; tap it again to open its enable/disable and delete menu. Tapping
+an unselected band selects it without opening a menu. Add bands with **+**.
+The global switch bypasses all EQ filters
+and EQ headroom attenuation; tone generation is unaffected. The existing noise-band
+selection still applies, so select **full** when adjusting EQ across the full spectrum.
+
+Tap the preset-name dropdown (or **Save EQ preset** for an unsaved EQ) to open the
+**Equalizer presets** menu. **Create EQ preset** saves the current EQ under a name;
+choosing an existing name offers **Replace**. **Save changes to current preset** updates
+the selected preset after confirmation. Tap a saved preset to load it, or use its
+**…** menu to replace it with the current EQ or delete it. Deleting a preset keeps
+the current settings. **Reset to default** restores five flat bands and keeps saved
+presets. Edits persist automatically without overwriting saved presets until you
+explicitly save again. Presets and the current EQ survive app restarts.
+
+**Sheet** summarizes all bands, including disabled bands, the global EQ state, and
+the applied headroom attenuation. **Copy** puts tab-separated text on the clipboard.
+
+Automatic headroom attenuation is calculated from the maximum combined filter response
+across the entire 48 kHz audio bandwidth, rounded upward to 0.1 dB. It includes overlapping
+boosts and shelf resonance. Shelf Q controls resonance, so higher Q may overshoot the shelf
+gain. The graph shows the EQ curve before headroom attenuation, and expands its vertical
+range when needed. Filter edits and bypass changes crossfade over approximately 43 ms;
+the output clamp remains a final safeguard against transient peaks.
+
+The filter coefficients follow the [W3C Audio EQ Cookbook](https://www.w3.org/TR/audio-eq-cookbook/).
+
+## Verification
+
+From PowerShell, with Android Studio's bundled JDK and the Android SDK configured:
+
+```powershell
+$env:JAVA_HOME = 'E:\Programs\Android Studio\jbr'
+.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+```
+
+The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+Unit tests cover filter response, stability at the parameter limits, combined headroom,
+bypass transitions, preset persistence, and clipboard text formatting. Device interaction
+and listening checks are performed separately in Android Studio/on the phone.
+
+## Audio routing
 
 - Bluetooth pairing and routing are handled by Android, not by the app.
 - The app uses standard media playback routing via `AudioTrack`.

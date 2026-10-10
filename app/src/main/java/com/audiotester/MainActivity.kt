@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.audiotester.ui.theme.AudiotesterTheme
 import kotlin.math.roundToInt
 
@@ -67,6 +69,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AudiotesterApp() {
     val engine = remember { AudioEngine() }
+    val context = LocalContext.current
+    val eqRepository = remember { EqRepository(context) }
+    var eqSession by remember { mutableStateOf(eqRepository.load()) }
+    val eqPlan = remember(eqSession.settings) { EqPlan(eqSession.settings) }
 
     var mode by remember { mutableStateOf(SignalMode.PINK_NOISE) }
     var band by remember { mutableStateOf(NoiseBand.LowBass) }
@@ -74,13 +80,14 @@ private fun AudiotesterApp() {
     var frequencyHz by remember { mutableFloatStateOf(1000f) }
     var isPlaying by remember { mutableStateOf(false) }
 
-    LaunchedEffect(mode, band, levelDb, frequencyHz) {
+    LaunchedEffect(mode, band, levelDb, frequencyHz, eqPlan) {
         engine.updateConfig(
             AudioConfig(
                 mode = mode,
                 band = band,
                 frequencyHz = frequencyHz,
                 levelDb = levelDb,
+                eqPlan = eqPlan,
             ),
         )
     }
@@ -107,6 +114,7 @@ private fun AudiotesterApp() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .safeDrawingPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -219,6 +227,15 @@ private fun AudiotesterApp() {
                                 frequencyHz = (frequencyHz + 100f).coerceIn(20f, 20_000f)
                             }
                         }
+                    }
+                }
+            }
+
+            if (mode == SignalMode.PINK_NOISE) {
+                ControlCard {
+                    EqualizerControls(eqSession, eqPlan) { next ->
+                        eqSession = next
+                        eqRepository.save(next)
                     }
                 }
             }

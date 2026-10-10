@@ -31,10 +31,10 @@ class AudioEngine {
     private var audioTrack: AudioTrack? = null
     private var phase = 0.0
     private var pinkState = PinkNoiseState()
+    private var eqRenderer = EqRenderer()
 
     fun updateConfig(newConfig: AudioConfig) {
         config = newConfig
-        pinkState.ensureBand(newConfig.band, sampleRate.toFloat())
     }
 
     fun start() {
@@ -68,6 +68,7 @@ class AudioEngine {
         audioTrack = track
         phase = 0.0
         pinkState = PinkNoiseState().also { it.ensureBand(config.band, sampleRate.toFloat()) }
+        eqRenderer = EqRenderer()
         isPlaying = true
         track.play()
         renderJob = scope.launch {
@@ -100,7 +101,7 @@ class AudioEngine {
         val linearGain = dbToLinear(current.levelDb)
         when (current.mode) {
             SignalMode.TONE -> renderTone(buffer, current.frequencyHz.toDouble(), linearGain)
-            SignalMode.PINK_NOISE -> renderPinkNoise(buffer, linearGain, current.band)
+            SignalMode.PINK_NOISE -> renderPinkNoise(buffer, linearGain, current.band, current.eqPlan)
         }
     }
 
@@ -115,10 +116,12 @@ class AudioEngine {
         }
     }
 
-    private fun renderPinkNoise(buffer: FloatArray, gain: Float, band: NoiseBand) {
+    private fun renderPinkNoise(buffer: FloatArray, gain: Float, band: NoiseBand, eqPlan: EqPlan) {
         pinkState.ensureBand(band, sampleRate.toFloat())
+        eqRenderer.setPlan(eqPlan)
         for (index in buffer.indices) {
-            buffer[index] = (pinkState.nextSample() * gain).coerceIn(-0.99f, 0.99f)
+            val shaped = eqRenderer.process(pinkState.nextSample().toDouble())
+            buffer[index] = (shaped * gain).toFloat().coerceIn(-0.99f, 0.99f)
         }
     }
 
@@ -130,6 +133,7 @@ data class AudioConfig(
     val band: NoiseBand = NoiseBand.LowBass,
     val frequencyHz: Float = 1000f,
     val levelDb: Float = -12f,
+    val eqPlan: EqPlan = EqPlan.BYPASS,
 )
 
 enum class SignalMode {
