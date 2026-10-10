@@ -1,5 +1,6 @@
 package com.audiotester
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.edit
 import com.audiotester.ui.theme.AudiotesterTheme
 import kotlin.math.roundToInt
 
@@ -70,12 +72,22 @@ class MainActivity : ComponentActivity() {
 private fun AudiotesterApp() {
     val engine = remember { AudioEngine() }
     val context = LocalContext.current
+    val preferences = remember(context) {
+        context.getSharedPreferences("audio_settings", Context.MODE_PRIVATE)
+    }
     val eqRepository = remember { EqRepository(context) }
     var eqSession by remember { mutableStateOf(eqRepository.load()) }
     val eqPlan = remember(eqSession.settings) { EqPlan(eqSession.settings) }
 
     var mode by remember { mutableStateOf(SignalMode.PINK_NOISE) }
-    var band by remember { mutableStateOf(NoiseBand.LowBass) }
+    var band by remember {
+        val savedBand = preferences.getString("noise_band", null)
+        mutableStateOf(NoiseBand.entries.find { it.name == savedBand } ?: NoiseBand.LowBass)
+    }
+    val onBandChange: (NoiseBand) -> Unit = { selectedBand ->
+        band = selectedBand
+        preferences.edit { putString("noise_band", selectedBand.name) }
+    }
     var levelDb by remember { mutableFloatStateOf(-12f) }
     var frequencyHz by remember { mutableFloatStateOf(1000f) }
     var isPlaying by remember { mutableStateOf(false) }
@@ -156,7 +168,7 @@ private fun AudiotesterApp() {
             if (mode == SignalMode.PINK_NOISE) {
                 ControlCard(title = "Noise band") {
                     OutlinedButton(
-                        onClick = { band = NoiseBand.Full },
+                        onClick = { onBandChange(NoiseBand.Full) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(18.dp),
                         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
@@ -179,7 +191,7 @@ private fun AudiotesterApp() {
                         partialBands.forEachIndexed { index, item ->
                             SegmentedButton(
                                 selected = band == item,
-                                onClick = { band = item },
+                                onClick = { onBandChange(item) },
                                 shape = SegmentedButtonDefaults.itemShape(
                                     index = index,
                                     count = partialBands.size,
