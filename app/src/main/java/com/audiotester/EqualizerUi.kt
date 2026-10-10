@@ -7,8 +7,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -66,8 +70,6 @@ fun EqualizerControls(session: EqSession, plan: EqPlan, onChange: (EqSession) ->
             }, modifier = Modifier.semantics { contentDescription = "Enable parametric EQ" })
         }
         Text(session.presetLabel ?: "Unsaved EQ", style = MaterialTheme.typography.bodyMedium)
-        Text("${session.settings.bands.count { it.enabled }} active bands · Headroom −${decimal(plan.appliedHeadroomDb)} dB",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) { Text("Edit equalizer") }
     }
     if (open) {
@@ -110,10 +112,8 @@ private fun EqualizerEditor(session: EqSession, plan: EqPlan, onChange: (EqSessi
             Switch(settings.enabled, { changeSettings(settings.copy(enabled = it)) },
                 modifier = Modifier.semantics { contentDescription = "Enable equalizer" })
         }
-        EqGraph(settings, plan, selected?.id, onSelect = { selectedId = it; bandMenuId = null })
-        Text(if (settings.enabled) "Headroom attenuation: −${decimal(plan.headroomDb)} dB"
-            else "EQ bypassed · Headroom attenuation: 0.0 dB",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        EqGraph(settings, plan, selected?.id,
+            onSelect = { selectedId = it; bandMenuId = null }, onBandChange = { changeBand(it) })
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             settings.bands.forEachIndexed { index, band ->
@@ -216,7 +216,7 @@ private fun EqualizerEditor(session: EqSession, plan: EqPlan, onChange: (EqSessi
                 deletePreset = null
             }) { Text("Delete") } }, dismissButton = { TextButton(onClick = { deletePreset = null }) { Text("Cancel") } })
     }
-    if (sheetDialog) ParameterSheet(session, plan) { sheetDialog = false }
+    if (sheetDialog) ParameterSheet(session) { sheetDialog = false }
 }
 
 @Composable
@@ -306,14 +306,14 @@ private fun PresetMenu(
 }
 
 @Composable
-private fun ParameterSheet(session: EqSession, plan: EqPlan, onDismiss: () -> Unit) {
+private fun ParameterSheet(session: EqSession, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
-    val text = eqParameterSheet(session.settings, session.presetLabel, plan)
+    val text = eqParameterSheet(session.settings, session.presetLabel)
     AlertDialog(onDismissRequest = onDismiss, title = { Text("EQ parameter sheet") },
         text = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(session.presetLabel ?: "Unsaved EQ")
-            Text("EQ ${if (session.settings.enabled) "on" else "off"} · Attenuation −${decimal(plan.appliedHeadroomDb)} dB")
+            Text("EQ ${if (session.settings.enabled) "on" else "off"}")
             Row(Modifier.horizontalScroll(rememberScrollState())) {
                 Column {
                     Text("#  On   Type         Hz       dB      Q", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
@@ -359,12 +359,20 @@ private fun EqualizerEditorLayout(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun EqGraph(settings: EqSettings, plan: EqPlan, selectedId: Long?, onSelect: (Long) -> Unit) {
+private fun EqGraph(
+    settings: EqSettings,
+    plan: EqPlan,
+    selectedId: Long?,
+    onSelect: (Long) -> Unit,
+    onBandChange: (EqBand) -> Unit,
+) {
     val foreground = MaterialTheme.colorScheme.onSurfaceVariant
     val background = MaterialTheme.colorScheme.surfaceContainerHigh
     val curveColor = MaterialTheme.colorScheme.primary
     val onSelectNow by rememberUpdatedState(onSelect)
     val selectedNow by rememberUpdatedState(selectedId)
+    val settingsNow by rememberUpdatedState(settings)
+    val onBandChangeNow by rememberUpdatedState(onBandChange)
     val responses = remember(plan) { (0..256).map { plan.responseDb(20.0 * 1000.0.pow(it / 256.0)).toFloat() } }
     val range = 15f
     val gainTicks = listOf(15, 10, 5, 0, -5, -10, -15)
@@ -391,10 +399,10 @@ private fun EqGraph(settings: EqSettings, plan: EqPlan, selectedId: Long?, onSel
             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().background(background)) {
                 val graphHeight = maxHeight
                 Canvas(Modifier.fillMaxSize().clipToBounds()
-                    .semantics { contentDescription = "Equalizer frequency response. Select bands using the markers or numbered buttons below." }
-                    .pointerInput(settings.bands, range) {
+                    .semantics { contentDescription = "Equalizer frequency response. Drag band markers to adjust frequency and gain, or select bands using the markers or numbered buttons below." }
+                    .pointerInput(Unit) {
                         detectTapGestures { tap ->
-                            val candidates = settings.bands.map { band ->
+                            val candidates = settingsNow.bands.map { band ->
                                 val point = Offset(frequencyToSlider(band.frequencyHz) * size.width,
                                     size.height * (0.5f - band.gainDb / (2 * range)))
                                 band.id to (tap - point).getDistance()
@@ -405,6 +413,42 @@ private fun EqGraph(settings: EqSettings, plan: EqPlan, selectedId: Long?, onSel
                                 val tied = candidates.filter { abs(it.second - closest.second) < 2.dp.toPx() }
                                 val current = tied.indexOfFirst { it.first == selectedNow }
                                 onSelectNow(tied[(current + 1) % tied.size].first)
+                            }
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        // Keep the gesture alive while edits recompose the graph, and only
+                        // claim drags that start on a marker so empty space can still scroll.
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            if (size.width <= 0 || size.height <= 0) return@awaitEachGesture
+                            val candidates = settingsNow.bands.map { band ->
+                                val center = Offset(frequencyToSlider(band.frequencyHz) * size.width,
+                                    size.height * (0.5f - band.gainDb / (2 * range)))
+                                Triple(band, center, (down.position - center).getDistance())
+                            }.filter { it.third <= 26.dp.toPx() }.sortedBy { it.third }
+                            val closest = candidates.firstOrNull() ?: return@awaitEachGesture
+                            val target = candidates.firstOrNull {
+                                it.first.id == selectedNow && abs(it.third - closest.third) < 2.dp.toPx()
+                            } ?: closest
+                            val start = awaitTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
+                                ?: return@awaitEachGesture
+                            onSelectNow(target.first.id)
+                            fun moveTo(position: Offset) {
+                                val band = settingsNow.bands.firstOrNull { it.id == target.first.id } ?: return
+                                // Preserve the grab offset rather than snapping the marker to the finger.
+                                val point = target.second + (position - down.position)
+                                val frequency = sliderToFrequency((point.x / size.width).coerceIn(0f, 1f))
+                                val gain = (range * (1f - 2f * point.y / size.height)).coerceIn(-range, range)
+                                onBandChangeNow(band.copy(
+                                    frequencyHz = frequency.roundToInt().toFloat(),
+                                    gainDb = (gain * 10).roundToInt() / 10f,
+                                ).validated())
+                            }
+                            moveTo(start.position)
+                            drag(start.id) { change ->
+                                change.consume()
+                                moveTo(change.position)
                             }
                         }
                     }) {
@@ -438,7 +482,7 @@ private fun EqGraph(settings: EqSettings, plan: EqPlan, selectedId: Long?, onSel
                 val selectedIndex = settings.bands.indexOfFirst { it.id == selectedId }
                 settings.bands.getOrNull(selectedIndex)?.let { band ->
                     val markerY = graphHeight * (0.5f - band.gainDb / (2 * range))
-                    val labelTop = if (markerY >= 64.dp) markerY - 48.dp else markerY + 20.dp
+                    val labelTop = if (markerY >= 80.dp) markerY - 64.dp else markerY + 32.dp
                     Text("${decimal(band.gainDb)} dB · ${band.frequencyHz.roundToInt()} Hz · ${decimal(band.q, 2)} Q",
                         modifier = Modifier.align(Alignment.TopCenter).padding(start = 16.dp, end = 16.dp, top = labelTop)
                             .background(bandColor(selectedIndex), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),

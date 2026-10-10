@@ -10,7 +10,6 @@ class EqualizerTest {
         assertEquals(5, settings.bands.size)
         assertEquals(5, settings.bands.map { it.id }.distinct().size)
         val plan = EqPlan(settings)
-        assertEquals(0.0, plan.headroomDb, 0.0)
         for (hz in listOf(20.0, 100.0, 1000.0, 20_000.0)) assertEquals(0.0, plan.responseDb(hz), 1e-9)
     }
 
@@ -42,44 +41,35 @@ class EqualizerTest {
         for (type in EqFilterType.entries) {
             val plan = EqPlan(EqSettings(bands = listOf(EqBand(1, type, 1234f, 12f, 2.3f), EqBand(2, type, 1234f, -12f, 2.3f))))
             for (i in 0..100) assertEquals(0.0, plan.responseDb(20.0 * 1000.0.pow(i / 100.0)), 1e-7)
-            assertEquals(0.0, plan.headroomDb, 0.0)
         }
     }
 
-    @Test fun overlappingBoostsRequireCombinedHeadroom() {
+    @Test fun rendererPreservesCombinedBoostGain() {
         val plan = EqPlan(EqSettings(bands = listOf(EqBand(1, gainDb = 12f), EqBand(2, gainDb = 12f))))
         assertEquals(24.0, plan.responseDb(1000.0), 1e-8)
-        assertTrue(plan.headroomDb >= 24.0)
-        assertTrue(plan.headroomDb <= 24.1)
-    }
-
-    @Test fun headroomCoversNarrowShelfResonancesIncludingCutOvershoot() {
-        for (type in listOf(EqFilterType.LOW_SHELF, EqFilterType.HIGH_SHELF)) {
-            for (gain in listOf(-15f, 15f)) {
-                for (hz in listOf(20f, 4321f, 20_000f)) {
-                    val plan = EqPlan(EqSettings(bands = listOf(EqBand(1, type, hz, gain, 10f))))
-                    var peak = 0.0
-                    for (i in 0..20_000) peak = max(peak, plan.responseDb(24_000.0.pow(i / 20_000.0)))
-                    assertTrue("$type $hz Hz $gain dB: $peak > ${plan.headroomDb}", plan.headroomDb + 1e-6 >= peak)
-                    assertTrue(plan.headroomDb <= peak + 0.11)
-                }
-            }
+        val renderer = EqRenderer()
+        renderer.setPlan(plan)
+        var inputPower = 0.0
+        var outputPower = 0.0
+        for (i in 0 until 96_000) {
+            val input = 0.01 * sin(2 * PI * 1000 * i / 48_000)
+            val output = renderer.process(input)
+            if (i >= 48_000) { inputPower += input * input; outputPower += output * output }
         }
+        assertEquals(24.0, 10 * log10(outputPower / inputPower), 1e-8)
     }
 
-    @Test fun disabledBandsDoNotAffectCurveOrHeadroom() {
+    @Test fun disabledBandsDoNotAffectCurve() {
         val plan = EqPlan(EqSettings(bands = listOf(EqBand(1, gainDb = 15f, enabled = false))))
         assertEquals(0.0, plan.responseDb(1000.0), 0.0)
-        assertEquals(0.0, plan.headroomDb, 0.0)
     }
 
-    @Test fun globalBypassRemovesFiltersAndAttenuationAfterTransition() {
+    @Test fun globalBypassRemovesFiltersAfterTransition() {
         val settings = EqSettings(bands = listOf(EqBand(1, gainDb = 15f)))
         val renderer = EqRenderer()
         renderer.setPlan(EqPlan(settings))
         repeat(4096) { renderer.process(sin(it * 0.13)) }
         val bypass = EqPlan(settings.copy(enabled = false))
-        assertEquals(0.0, bypass.appliedHeadroomDb, 0.0)
         renderer.setPlan(bypass)
         repeat(2048) { renderer.process(0.25) }
         assertEquals(0.25, renderer.process(0.25), 0.0)
@@ -87,7 +77,6 @@ class EqualizerTest {
 
     @Test fun emptyEqualizerIsValid() {
         val plan = EqPlan(EqSettings(bands = emptyList()))
-        assertEquals(0.0, plan.headroomDb, 0.0)
         val renderer = EqRenderer()
         renderer.setPlan(plan)
         repeat(4096) { assertEquals(0.42, renderer.process(0.42), 1e-12) }
@@ -133,10 +122,9 @@ class EqualizerTest {
 
     @Test fun sheetIncludesDisabledBandsAndGlobalStateInPortableFormat() {
         val settings = EqSettings(enabled = false, bands = listOf(EqBand(1, gainDb = -3.5f, enabled = false)))
-        val text = eqParameterSheet(settings, "Headphones", EqPlan(settings))
+        val text = eqParameterSheet(settings, "Headphones")
         assertTrue(text.contains("Preset\tHeadphones"))
         assertTrue(text.contains("EQ\tOff"))
-        assertTrue(text.contains("Headroom attenuation (dB)\t0.0"))
         assertTrue(text.contains("1\tNo\tPeak/dip\t1000\t-3.5\t1.00"))
     }
 }

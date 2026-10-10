@@ -103,47 +103,18 @@ class EqFilter(private val c: EqCoefficients) {
     }
 }
 
-/** Immutable coefficients prepared outside the audio thread. Headroom covers the entire
- * 0..Nyquist response, including shelf resonance and boosts from overlapping bands.
- */
+/** Immutable coefficients prepared outside the audio thread. */
 class EqPlan(val settings: EqSettings, val sampleRate: Double = 48_000.0) {
     val coefficients = settings.bands.filter { it.enabled && it.gainDb != 0f }.map { EqCoefficients.from(it, sampleRate) }
     fun responseDb(hz: Double): Double = coefficients.sumOf { it.responseDb(hz, sampleRate) }
-    val headroomDb: Double = findHeadroom()
-    val appliedHeadroomDb: Double get() = if (settings.enabled) headroomDb else 0.0
-
-    private fun findHeadroom(): Double {
-        if (coefficients.isEmpty()) return 0.0
-        val nyquist = sampleRate / 2
-        val frequencies = (0..2048).map { (nyquist - 0.001).pow(it / 2048.0) } +
-            settings.bands.filter { it.enabled }.map { it.frequencyHz.toDouble() }
-        val points = (listOf(0.0, nyquist) + frequencies).sorted()
-        val values = points.map(::responseDb)
-        var peak = max(0.0, values.max())
-        // Refine every local maximum so even a narrow resonance between grid points is covered.
-        for (i in 1 until points.lastIndex) {
-            if (values[i] < values[i - 1] || values[i] < values[i + 1]) continue
-            var low = points[i - 1]
-            var high = points[i + 1]
-            repeat(24) {
-                val left = low + (high - low) / 3
-                val right = high - (high - low) / 3
-                if (responseDb(left) < responseDb(right)) low = left else high = right
-            }
-            peak = max(peak, responseDb((low + high) / 2))
-        }
-        // Round upward to 0.1 dB rather than understating required attenuation.
-        return if (peak < 1e-6) 0.0 else ceil(peak * 10) / 10
-    }
 
     companion object { val BYPASS = EqPlan(EqSettings(enabled = false, bands = emptyList())) }
 }
 
 private class EqProcessor(plan: EqPlan) {
     private val filters = if (plan.settings.enabled) plan.coefficients.map(::EqFilter) else emptyList()
-    private val gain = 10.0.pow(-plan.appliedHeadroomDb / 20)
     fun process(input: Double): Double {
-        var output = input * gain
+        var output = input
         for (filter in filters) output = filter.process(output)
         return output
     }
@@ -186,11 +157,10 @@ class EqRenderer {
     }
 }
 
-fun eqParameterSheet(settings: EqSettings, presetName: String?, plan: EqPlan): String = buildString {
+fun eqParameterSheet(settings: EqSettings, presetName: String?): String = buildString {
     appendLine("Pink noise parametric EQ")
     appendLine("Preset\t${presetName ?: "Unsaved"}")
     appendLine("EQ\t${if (settings.enabled) "On" else "Off"}")
-    appendLine("Headroom attenuation (dB)\t${String.format(Locale.US, "%.1f", plan.appliedHeadroomDb)}")
     appendLine("Band\tEnabled\tType\tFrequency (Hz)\tGain (dB)\tQ")
     settings.bands.forEachIndexed { index, band ->
         appendLine(String.format(Locale.US, "%d\t%s\t%s\t%.0f\t%.1f\t%.2f",

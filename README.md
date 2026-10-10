@@ -89,8 +89,7 @@ Change the selected band's filter type using the borderless dropdown inside the 
 above the parameter buttons. The selected band's button
 shows a down-arrow; tap it again to open its enable/disable and delete menu. Tapping
 an unselected band selects it without opening a menu. Add bands with **+**.
-The global switch bypasses all EQ filters
-and EQ headroom attenuation; tone generation is unaffected. The existing noise-band
+The global switch bypasses all EQ filters; tone generation is unaffected. The existing noise-band
 selection still applies, so select **full** when adjusting EQ across the full spectrum.
 
 Tap the preset-name dropdown (or **Save EQ preset** for an unsaved EQ) to open the
@@ -102,14 +101,12 @@ the current settings. **Reset to default** restores five flat bands and keeps sa
 presets. Edits persist automatically without overwriting saved presets until you
 explicitly save again. Presets and the current EQ survive app restarts.
 
-**Sheet** summarizes all bands, including disabled bands, the global EQ state, and
-the applied headroom attenuation. **Copy** puts tab-separated text on the clipboard.
+**Sheet** summarizes all bands, including disabled bands, and the global EQ state.
+**Copy** puts tab-separated text on the clipboard.
 
-Automatic headroom attenuation is calculated from the maximum combined filter response
-across the entire 48 kHz audio bandwidth, rounded upward to 0.1 dB. It includes overlapping
-boosts and shelf resonance. Shelf Q controls resonance, so higher Q may overshoot the shelf
-gain. The graph shows the EQ curve before headroom attenuation, and expands its vertical
-range when needed. Filter edits and bypass changes crossfade over approximately 43 ms;
+EQ applies the configured band gains directly. Shelf Q controls resonance, so higher Q
+may overshoot the shelf gain. The graph shows the combined EQ curve and expands its
+vertical range when needed. Filter edits and bypass changes crossfade over approximately 43 ms;
 the output clamp remains a final safeguard against transient peaks.
 
 The filter coefficients follow the [W3C Audio EQ Cookbook](https://www.w3.org/TR/audio-eq-cookbook/).
@@ -124,7 +121,7 @@ $env:JAVA_HOME = 'E:\Programs\Android Studio\jbr'
 ```
 
 The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
-Unit tests cover filter response, stability at the parameter limits, combined headroom,
+Unit tests cover filter response, stability at the parameter limits, combined boost gain,
 bypass transitions, preset persistence, and clipboard text formatting. Device interaction
 and listening checks are performed separately in Android Studio/on the phone.
 
